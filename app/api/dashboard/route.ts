@@ -24,7 +24,7 @@ export async function GET() {
     ]);
 
     // 2. Handle Sheet Data (Standard parsing)
-    let latestData = {};
+    let latestData: Record<string, any> = {};
     if (sheetRes.ok) {
       const sheetJson = await sheetRes.json();
       if (sheetJson.values && sheetJson.values.length >= 2) {
