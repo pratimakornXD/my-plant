@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import useSWR from "swr";
 import { 
-  Thermometer, Droplets, Sun, CloudRain, Activity, Clock, AlertTriangle, WifiOff, RefreshCw, ChevronDown, Leaf, Sprout, Maximize2, Flame
+  Thermometer, Droplets, Sun, CloudRain, Activity, Clock, AlertTriangle, WifiOff, RefreshCw, ChevronDown, Leaf, Sprout, Flame
 } from "lucide-react";
 
 // --- CONFIG ---
@@ -15,65 +15,49 @@ const PLANT_DB: Record<string, any> = {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-// --- FIRE ALERT OVERLAY ---
+// --- COMPONENTS ---
 const FireOverlay = () => (
   <div className="fixed inset-0 z-[9999] bg-red-600 flex flex-col items-center justify-center text-white animate-pulse">
     <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-orange-500 via-red-600 to-red-900 opacity-80"></div>
     <div className="relative z-10 flex flex-col items-center gap-6 p-8 text-center">
-      <div className="bg-white text-red-600 p-8 rounded-full shadow-[0_0_100px_rgba(255,255,255,0.5)] animate-bounce">
-        <Flame size={120} strokeWidth={1.5} fill="currentColor" />
-      </div>
+      <div className="bg-white text-red-600 p-8 rounded-full shadow-[0_0_100px_rgba(255,255,255,0.5)] animate-bounce"><Flame size={120} strokeWidth={1.5} fill="currentColor" /></div>
       <h1 className="text-6xl md:text-8xl font-black tracking-tighter drop-shadow-xl uppercase">FIRE DETECTED</h1>
-      <p className="text-2xl md:text-3xl font-bold bg-black/30 px-6 py-2 rounded-xl backdrop-blur-sm border border-white/20">EVACUATE IMMEDIATELY</p>
       <button className="mt-8 bg-white text-red-600 font-bold px-8 py-4 rounded-full text-xl hover:scale-105 transition-transform shadow-xl" onClick={() => window.location.reload()}>Dismiss</button>
     </div>
   </div>
 );
 
-// --- METRIC CARD ---
 const MetricCard = ({ title, value, unit, icon: Icon, colorClass = "text-slate-900 dark:text-white" }: any) => (
   <div className="group bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-slate-200 dark:border-slate-800 rounded-2xl p-5 hover:shadow-lg hover:border-emerald-500/30 transition-all">
     <div className="flex justify-between items-start">
       <div>
         <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">{title}</p>
-        <div className="flex items-baseline gap-1">
-          <span className={`text-3xl font-bold tracking-tight ${colorClass}`}>{value ?? "—"}</span>
-          <span className="text-sm text-slate-400 font-medium">{unit}</span>
-        </div>
+        <div className="flex items-baseline gap-1"><span className={`text-3xl font-bold tracking-tight ${colorClass}`}>{value ?? "—"}</span><span className="text-sm text-slate-400 font-medium">{unit}</span></div>
       </div>
       <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300"><Icon size={22} strokeWidth={2} /></div>
     </div>
   </div>
 );
 
-// --- CAMERA FEED (Auto Base64 Handling) ---
-const CameraFeed = ({ url, title, timestamp }: any) => {
+const CameraFeed = ({ url, title, timestamp, isFastLane = false }: any) => {
   let displayUrl = "";
   if (url) {
-    if (url.startsWith("http")) {
-       // URL: Add cache buster
-       displayUrl = `${url}?t=${new Date().getTime()}`;
-    } else {
-       // Base64: Add prefix if needed
-       displayUrl = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
-    }
+    if (url.startsWith("http")) displayUrl = `${url}?t=${new Date().getTime()}`;
+    else displayUrl = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
   }
 
   return (
     <div className="flex flex-col h-full bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
       <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white/50 dark:bg-slate-900/50">
         <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium text-sm">
-          <div className={`w-2 h-2 rounded-full ${url ? "bg-emerald-500" : "bg-red-500 animate-pulse"}`} />
+          {/* Green = Normal, Red Pulse = Fast Lane (Live) */}
+          <div className={`w-2 h-2 rounded-full ${isFastLane ? "bg-red-500 animate-pulse" : "bg-emerald-500"}`} />
           {title}
         </div>
         <span className="text-xs font-mono text-slate-400">{timestamp ? new Date(timestamp).toLocaleTimeString() : "--:--:--"}</span>
       </div>
       <div className="relative flex-1 min-h-[250px] bg-slate-100 dark:bg-slate-950 flex items-center justify-center group overflow-hidden">
-        {displayUrl ? (
-          <img src={displayUrl} alt={title} className="w-full h-full object-cover" />
-        ) : (
-          <div className="flex flex-col items-center gap-3 text-slate-400"><WifiOff size={32} /><span className="text-sm">No Signal</span></div>
-        )}
+        {displayUrl ? <img src={displayUrl} alt={title} className="w-full h-full object-cover" /> : <div className="flex flex-col items-center gap-3 text-slate-400"><WifiOff size={32} /><span className="text-sm">No Signal</span></div>}
       </div>
     </div>
   );
@@ -88,7 +72,7 @@ const RecItem = ({ label, value, icon: Icon }: any) => (
 
 const getSeverityColor = (alert: string) => {
   const text = alert.toLowerCase();
-  if (text.includes("fire")) return "bg-red-600 text-white border-red-700 animate-pulse font-bold";
+  if (text.includes("fire")) return "bg-red-600 text-white border-red-700 font-bold";
   if (text.includes("spot") || text.includes("blight")) return "bg-red-50 text-red-700 border-red-200";
   return "bg-blue-50 text-blue-700 border-blue-200";
 };
@@ -96,17 +80,28 @@ const getSeverityColor = (alert: string) => {
 export default function IoTDashboard() {
   const [selectedPlantKey, setSelectedPlantKey] = useState("tomato");
   
-  // Fast polling for live updates
-  const { data, error, isLoading, mutate } = useSWR("/api/dashboard", fetcher, {
+  // --- LANE 1: SLOW DATA (Sensors, Weather) - 2.0s ---
+  const { data: slowData, error, isLoading, mutate } = useSWR("/api/dashboard", fetcher, {
     refreshInterval: 2000, 
     dedupingInterval: 1000,
   });
 
-  const sensor = data?.sensor_data || {};
-  const weather = data?.weather_data;
+  // --- LANE 2: FAST DATA (Live Image Only) - 0.5s ---
+  const { data: fastData } = useSWR("/api/live", fetcher, {
+    refreshInterval: 500, // Very fast refresh
+    dedupingInterval: 0,
+  });
+
+  // Data Merging
+  const sensor = slowData?.sensor_data || {};
+  const weather = slowData?.weather_data;
   const currentPlant = PLANT_DB[selectedPlantKey];
   const alerts = sensor.alerts || [];
-  const isOnline = !error && data?.sensor_data;
+  const isOnline = !error && slowData?.sensor_data;
+  
+  // Use Fast Data if available, fallback to Slow Data
+  const liveImageUrl = fastData?.image || sensor.realtime_image_url;
+  const liveTimestamp = fastData?.timestamp || sensor.latest_detection_time || sensor.timestamp;
   
   const isFire = String(sensor.fire) === "1" || String(sensor.fire).toLowerCase() === "true";
 
@@ -136,7 +131,7 @@ export default function IoTDashboard() {
         <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">Dashboard Overview</h1>
-            <p className="text-slate-500 dark:text-slate-400 flex items-center gap-2 text-sm"><Clock size={14} /> Last update: {data?.timestamp ? new Date(data.timestamp).toLocaleString() : "Syncing..."}</p>
+            <p className="text-slate-500 dark:text-slate-400 flex items-center gap-2 text-sm"><Clock size={14} /> Last update: {slowData?.timestamp ? new Date(slowData.timestamp).toLocaleString() : "Syncing..."}</p>
           </div>
           <div className="relative group min-w-[200px]">
             <div className="relative">
@@ -201,11 +196,21 @@ export default function IoTDashboard() {
           </div>
 
           <div className="lg:col-span-4 space-y-6">
-            <div className="grid grid-cols-1 gap-4 h-[640px]">
-               {/* LIVE FEED (From Python) */}
-               <CameraFeed title="Live Feed (Detection)" url={sensor.realtime_image_url} timestamp={sensor.latest_detection_time || sensor.timestamp} />
-               {/* DAILY HISTORY (From Sheet) */}
-               <CameraFeed title="Daily History" url={sensor.daily_image_url} timestamp={sensor.timestamp} />
+            <div className="grid grid-cols-1 gap-4 h-[500px]">
+               {/* FAST LANE FEED (0.5s Refresh) */}
+               <CameraFeed 
+                 title="Live Feed (High Speed)" 
+                 url={liveImageUrl} 
+                 timestamp={liveTimestamp} 
+                 isFastLane={true} // Triggers visual indicator
+               />
+               
+               {/* SLOW LANE FEED (History) */}
+               <CameraFeed 
+                 title="Daily History" 
+                 url={sensor.daily_image_url} 
+                 timestamp={sensor.timestamp} 
+               />
             </div>
 
             <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl p-6 shadow-lg shadow-blue-500/20 relative overflow-hidden">
@@ -213,10 +218,7 @@ export default function IoTDashboard() {
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-blue-300 opacity-20 rounded-full translate-y-1/3 -translate-x-1/3 blur-xl"></div>
               <div className="relative z-10">
                 <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <h3 className="text-blue-100 text-sm font-medium">Local Weather</h3>
-                    <p className="text-2xl font-bold mt-1">{weather ? Math.round(weather.main.temp) : "--"}°C</p>
-                  </div>
+                  <div><h3 className="text-blue-100 text-sm font-medium">Local Weather</h3><p className="text-2xl font-bold mt-1">{weather ? Math.round(weather.main.temp) : "--"}°C</p></div>
                   {weather?.weather[0]?.icon && (<img src={weather.weather[0].icon} alt="weather icon" className="w-16 h-16 -mt-2 filter drop-shadow-md" />)}
                 </div>
                 <div className="space-y-3">
