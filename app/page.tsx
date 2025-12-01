@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import useSWR from "swr";
 import { 
-  Thermometer, Droplets, Sun, CloudRain, Activity, Clock, AlertTriangle, WifiOff, RefreshCw, ChevronDown, Leaf, Sprout, Flame
+  Thermometer, Droplets, Sun, CloudRain, Activity, Clock, AlertTriangle, WifiOff, RefreshCw, ChevronDown, Leaf, Sprout, Flame, Calendar, Info
 } from "lucide-react";
 
 // --- CONFIG ---
@@ -39,7 +39,8 @@ const MetricCard = ({ title, value, unit, icon: Icon, colorClass = "text-slate-9
   </div>
 );
 
-const CameraFeed = ({ url, title, timestamp, isFastLane = false }: any) => {
+// --- UPDATED CAMERA FEED (Supports Status Bar) ---
+const CameraFeed = ({ url, title, timestamp, isFastLane = false, extraControls = null, statusText = null }: any) => {
   let displayUrl = "";
   if (url) {
     if (url.startsWith("http")) displayUrl = `${url}?t=${new Date().getTime()}`;
@@ -50,15 +51,30 @@ const CameraFeed = ({ url, title, timestamp, isFastLane = false }: any) => {
     <div className="flex flex-col h-full bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
       <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white/50 dark:bg-slate-900/50">
         <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium text-sm">
-          {/* Green = Normal, Red Pulse = Fast Lane (Live) */}
           <div className={`w-2 h-2 rounded-full ${isFastLane ? "bg-red-500 animate-pulse" : "bg-emerald-500"}`} />
           {title}
         </div>
-        <span className="text-xs font-mono text-slate-400">{timestamp ? new Date(timestamp).toLocaleTimeString() : "--:--:--"}</span>
+        {extraControls ? extraControls : (
+          <span className="text-xs font-mono text-slate-400">{timestamp ? new Date(timestamp).toLocaleTimeString() : "--:--:--"}</span>
+        )}
       </div>
+      
       <div className="relative flex-1 min-h-[250px] bg-slate-100 dark:bg-slate-950 flex items-center justify-center group overflow-hidden">
         {displayUrl ? <img src={displayUrl} alt={title} className="w-full h-full object-cover" /> : <div className="flex flex-col items-center gap-3 text-slate-400"><WifiOff size={32} /><span className="text-sm">No Signal</span></div>}
       </div>
+
+      {/* --- NEW STATUS BAR --- */}
+      {statusText && (
+        <div className="px-4 py-2 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                <Info size={14} className="text-blue-500" />
+                <span>Daily Status:</span>
+                <span className="ml-auto bg-white dark:bg-slate-700 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-600">
+                    {statusText}
+                </span>
+            </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -80,30 +96,41 @@ const getSeverityColor = (alert: string) => {
 export default function IoTDashboard() {
   const [selectedPlantKey, setSelectedPlantKey] = useState("tomato");
   
-  // --- LANE 1: SLOW DATA (Sensors, Weather) - 2.0s ---
-  const { data: slowData, error, isLoading, mutate } = useSWR("/api/dashboard", fetcher, {
-    refreshInterval: 2000, 
-    dedupingInterval: 1000,
-  });
+  const [selectedHistoryDate, setSelectedHistoryDate] = useState<string>("");
+  const [historyImage, setHistoryImage] = useState<string | null>(null);
+  const [historyStatus, setHistoryStatus] = useState<string | null>(null); // NEW STATUS STATE
 
-  // --- LANE 2: FAST DATA (Live Image Only) - 0.5s ---
-  const { data: fastData } = useSWR("/api/live", fetcher, {
-    refreshInterval: 500, // Very fast refresh
-    dedupingInterval: 0,
-  });
+  const { data: slowData, error, mutate } = useSWR("/api/dashboard", fetcher, { refreshInterval: 2000 });
+  const { data: fastData } = useSWR("/api/live", fetcher, { refreshInterval: 500 });
 
-  // Data Merging
   const sensor = slowData?.sensor_data || {};
+  const historyLog = slowData?.history_log || []; 
   const weather = slowData?.weather_data;
   const currentPlant = PLANT_DB[selectedPlantKey];
   const alerts = sensor.alerts || [];
   const isOnline = !error && slowData?.sensor_data;
-  
-  // Use Fast Data if available, fallback to Slow Data
+  const isFire = String(sensor.fire) === "1" || String(sensor.fire).toLowerCase() === "true";
+
+  // Updated History Logic to include Status
+  useEffect(() => {
+    if (historyLog.length > 0) {
+        if (!selectedHistoryDate) {
+            const latest = historyLog[historyLog.length - 1];
+            setSelectedHistoryDate(latest.date);
+            setHistoryImage(latest.image);
+            setHistoryStatus(latest.status); // Set initial status
+        } else {
+            const selectedItem = historyLog.find((item: any) => item.date === selectedHistoryDate);
+            if (selectedItem) {
+                setHistoryImage(selectedItem.image);
+                setHistoryStatus(selectedItem.status); // Update status on change
+            }
+        }
+    }
+  }, [historyLog, selectedHistoryDate]);
+
   const liveImageUrl = fastData?.image || sensor.realtime_image_url;
   const liveTimestamp = fastData?.timestamp || sensor.latest_detection_time || sensor.timestamp;
-  
-  const isFire = String(sensor.fire) === "1" || String(sensor.fire).toLowerCase() === "true";
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-emerald-500/30">
@@ -121,13 +148,12 @@ export default function IoTDashboard() {
               <span className={`relative flex h-2 w-2`}>{isOnline && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}<span className={`relative inline-flex rounded-full h-2 w-2 ${isOnline ? "bg-emerald-500" : "bg-red-500"}`}></span></span>
               {isOnline ? "System Online" : "Offline"}
             </div>
-            <button onClick={() => mutate()} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-slate-600"><RefreshCw size={18} className={isLoading ? "animate-spin" : ""} /></button>
+            <button onClick={() => mutate()} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-slate-600"><RefreshCw size={18} /></button>
           </div>
         </div>
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
         <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">Dashboard Overview</h1>
@@ -196,20 +222,37 @@ export default function IoTDashboard() {
           </div>
 
           <div className="lg:col-span-4 space-y-6">
-            <div className="grid grid-cols-1 gap-4 h-[500px]">
-               {/* FAST LANE FEED (0.5s Refresh) */}
+            <div className="grid grid-cols-1 gap-4 h-[640px]">
+               {/* FAST LANE FEED */}
                <CameraFeed 
-                 title="Live Feed (High Speed)" 
+                 title="Live Feed" 
                  url={liveImageUrl} 
                  timestamp={liveTimestamp} 
-                 isFastLane={true} // Triggers visual indicator
+                 isFastLane={true} 
                />
                
-               {/* SLOW LANE FEED (History) */}
+               {/* SLOW LANE FEED (History with Status) */}
                <CameraFeed 
                  title="Daily History" 
-                 url={sensor.daily_image_url} 
-                 timestamp={sensor.timestamp} 
+                 url={historyImage} 
+                 timestamp={selectedHistoryDate || "Select Date"}
+                 statusText={historyStatus} // Pass the status here
+                 extraControls={
+                    historyLog.length > 0 ? (
+                        <div className="relative">
+                            <select 
+                                value={selectedHistoryDate}
+                                onChange={(e) => setSelectedHistoryDate(e.target.value)}
+                                className="appearance-none bg-slate-100 dark:bg-slate-800 text-xs font-bold py-1 px-3 pr-6 rounded-lg cursor-pointer focus:outline-none border border-transparent hover:border-slate-300 dark:hover:border-slate-600 shadow-sm"
+                            >
+                                {historyLog.map((log: any, i: number) => (
+                                    <option key={i} value={log.date}>{log.date}</option>
+                                ))}
+                            </select>
+                            <Calendar size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"/>
+                        </div>
+                    ) : null
+                 }
                />
             </div>
 
