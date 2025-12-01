@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 
-// --- IN-MEMORY STORAGE (The "Direct" Link) ---
-// This variable lives on the server as long as the server is running.
-// We declare it in the global scope so it persists between requests.
+// --- IN-MEMORY STORAGE ---
+// This acts as a temporary "Live Database"
 declare global {
   var latestAlertData: any;
 }
 
-// Initialize if empty
 if (!global.latestAlertData) {
   global.latestAlertData = null;
 }
@@ -16,23 +14,24 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    // Validate the incoming Python data
-    if (!body.image || !body.label) {
-      return NextResponse.json({ error: "Missing data" }, { status: 400 });
+    // Validate
+    if (!body.image) {
+      return NextResponse.json({ error: "No image provided" }, { status: 400 });
     }
 
-    // Save directly to server memory (Bypassing Google Sheets)
+    // Save to Global Memory
     global.latestAlertData = {
-      label: body.label,
-      confidence: body.confidence,
-      image: body.image, // Raw Base64 string
+      label: body.label || "Unknown",
+      confidence: body.confidence || 0,
+      image: body.image, // Base64 string
       timestamp: new Date().toISOString(),
     };
 
-    console.log(`Alert Received: ${body.label}`);
+    console.log(`✅ Alert Recv: ${body.label}`);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, message: "Frame received" });
   } catch (error) {
-    return NextResponse.json({ error: "Failed to process alert" }, { status: 500 });
+    console.error("POST Error:", error);
+    return NextResponse.json({ error: "Failed to process" }, { status: 500 });
   }
 }

@@ -3,10 +3,10 @@
 import React, { useState } from "react";
 import useSWR from "swr";
 import { 
-  Thermometer, Droplets, Sun, CloudRain, Activity, Clock, AlertTriangle, WifiOff, RefreshCw, ChevronDown, Leaf, Sprout, Maximize2
+  Thermometer, Droplets, Sun, CloudRain, Activity, Clock, AlertTriangle, WifiOff, RefreshCw, ChevronDown, Leaf, Sprout, Maximize2, Flame
 } from "lucide-react";
 
-// --- PLANT CONFIG ---
+// --- CONFIG ---
 const PLANT_DB: Record<string, any> = {
   tomato: { name: "Tomato", image: "/tomato.png", color: "text-red-500", bg: "bg-red-500", specs: { temp: "20-27°C", air_humid: "60-80%", soil_humid: "60-70%", light: "40k-60k lx", water: "2-3cm/week" }},
   lettuce: { name: "Lettuce", image: "/lettuce.png", color: "text-green-500", bg: "bg-green-500", specs: { temp: "15-20°C", air_humid: "50-70%", soil_humid: "70-80%", light: "12k-20k lx", water: "Keep moist" }},
@@ -15,7 +15,22 @@ const PLANT_DB: Record<string, any> = {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
-// --- HELPER COMPONENTS ---
+// --- FIRE ALERT OVERLAY ---
+const FireOverlay = () => (
+  <div className="fixed inset-0 z-[9999] bg-red-600 flex flex-col items-center justify-center text-white animate-pulse">
+    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-orange-500 via-red-600 to-red-900 opacity-80"></div>
+    <div className="relative z-10 flex flex-col items-center gap-6 p-8 text-center">
+      <div className="bg-white text-red-600 p-8 rounded-full shadow-[0_0_100px_rgba(255,255,255,0.5)] animate-bounce">
+        <Flame size={120} strokeWidth={1.5} fill="currentColor" />
+      </div>
+      <h1 className="text-6xl md:text-8xl font-black tracking-tighter drop-shadow-xl uppercase">FIRE DETECTED</h1>
+      <p className="text-2xl md:text-3xl font-bold bg-black/30 px-6 py-2 rounded-xl backdrop-blur-sm border border-white/20">EVACUATE IMMEDIATELY</p>
+      <button className="mt-8 bg-white text-red-600 font-bold px-8 py-4 rounded-full text-xl hover:scale-105 transition-transform shadow-xl" onClick={() => window.location.reload()}>Dismiss</button>
+    </div>
+  </div>
+);
+
+// --- METRIC CARD ---
 const MetricCard = ({ title, value, unit, icon: Icon, colorClass = "text-slate-900 dark:text-white" }: any) => (
   <div className="group bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-slate-200 dark:border-slate-800 rounded-2xl p-5 hover:shadow-lg hover:border-emerald-500/30 transition-all">
     <div className="flex justify-between items-start">
@@ -26,23 +41,20 @@ const MetricCard = ({ title, value, unit, icon: Icon, colorClass = "text-slate-9
           <span className="text-sm text-slate-400 font-medium">{unit}</span>
         </div>
       </div>
-      <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300">
-        <Icon size={22} strokeWidth={2} />
-      </div>
+      <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-xl text-slate-600 dark:text-slate-300"><Icon size={22} strokeWidth={2} /></div>
     </div>
   </div>
 );
 
-// --- UNIVERSAL CAMERA FEED (HANDLES BASE64 AUTOMATICALLY) ---
+// --- CAMERA FEED (Auto Base64 Handling) ---
 const CameraFeed = ({ url, title, timestamp }: any) => {
   let displayUrl = "";
-  
   if (url) {
     if (url.startsWith("http")) {
-       // If it happens to be a URL, add cache buster
+       // URL: Add cache buster
        displayUrl = `${url}?t=${new Date().getTime()}`;
     } else {
-       // Assume Base64. Check if it has prefix, if not, add it.
+       // Base64: Add prefix if needed
        displayUrl = url.startsWith("data:") ? url : `data:image/jpeg;base64,${url}`;
     }
   }
@@ -51,7 +63,6 @@ const CameraFeed = ({ url, title, timestamp }: any) => {
     <div className="flex flex-col h-full bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
       <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-white/50 dark:bg-slate-900/50">
         <div className="flex items-center gap-2 text-slate-700 dark:text-slate-200 font-medium text-sm">
-          {/* Green dot if image exists, Pulse Red if it's the live one */}
           <div className={`w-2 h-2 rounded-full ${url ? "bg-emerald-500" : "bg-red-500 animate-pulse"}`} />
           {title}
         </div>
@@ -70,26 +81,24 @@ const CameraFeed = ({ url, title, timestamp }: any) => {
 
 const RecItem = ({ label, value, icon: Icon }: any) => (
   <div className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-    <div className="flex items-center gap-3 text-slate-600 dark:text-slate-400">
-      <div className="p-1.5 bg-slate-100 dark:bg-slate-800 rounded-md"><Icon size={14} /></div>
-      <span className="text-xs font-medium">{label}</span>
-    </div>
+    <div className="flex items-center gap-3 text-slate-600 dark:text-slate-400"><div className="p-1.5 bg-slate-100 dark:bg-slate-800 rounded-md"><Icon size={14} /></div><span className="text-xs font-medium">{label}</span></div>
     <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{value}</span>
   </div>
 );
 
 const getSeverityColor = (alert: string) => {
   const text = alert.toLowerCase();
-  if (text.includes("spot") || text.includes("blight") || text.includes("mold")) return "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800";
-  return "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800";
+  if (text.includes("fire")) return "bg-red-600 text-white border-red-700 animate-pulse font-bold";
+  if (text.includes("spot") || text.includes("blight")) return "bg-red-50 text-red-700 border-red-200";
+  return "bg-blue-50 text-blue-700 border-blue-200";
 };
 
-// --- MAIN DASHBOARD ---
 export default function IoTDashboard() {
   const [selectedPlantKey, setSelectedPlantKey] = useState("tomato");
   
+  // Fast polling for live updates
   const { data, error, isLoading, mutate } = useSWR("/api/dashboard", fetcher, {
-    refreshInterval: 3000, 
+    refreshInterval: 2000, 
     dedupingInterval: 1000,
   });
 
@@ -98,11 +107,14 @@ export default function IoTDashboard() {
   const currentPlant = PLANT_DB[selectedPlantKey];
   const alerts = sensor.alerts || [];
   const isOnline = !error && data?.sensor_data;
+  
+  const isFire = String(sensor.fire) === "1" || String(sensor.fire).toLowerCase() === "true";
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-emerald-500/30">
       
-      {/* Navbar */}
+      {isFire && <FireOverlay />}
+
       <nav className="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -111,26 +123,22 @@ export default function IoTDashboard() {
           </div>
           <div className="flex items-center gap-4">
              <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${isOnline ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800" : "bg-red-50 text-red-700 border-red-200"}`}>
-              <span className={`relative flex h-2 w-2`}>
-                {isOnline && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
-                <span className={`relative inline-flex rounded-full h-2 w-2 ${isOnline ? "bg-emerald-500" : "bg-red-500"}`}></span>
-              </span>
+              <span className={`relative flex h-2 w-2`}>{isOnline && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}<span className={`relative inline-flex rounded-full h-2 w-2 ${isOnline ? "bg-emerald-500" : "bg-red-500"}`}></span></span>
               {isOnline ? "System Online" : "Offline"}
             </div>
+            <button onClick={() => mutate()} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400 hover:text-slate-600"><RefreshCw size={18} className={isLoading ? "animate-spin" : ""} /></button>
           </div>
         </div>
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         
-        {/* Header */}
         <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">Dashboard Overview</h1>
             <p className="text-slate-500 dark:text-slate-400 flex items-center gap-2 text-sm"><Clock size={14} /> Last update: {data?.timestamp ? new Date(data.timestamp).toLocaleString() : "Syncing..."}</p>
           </div>
           <div className="relative group min-w-[200px]">
-            <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1 block">Active Crop</label>
             <div className="relative">
               <select value={selectedPlantKey} onChange={(e) => setSelectedPlantKey(e.target.value)} className="w-full appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 py-2.5 pl-4 pr-10 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/50 font-medium cursor-pointer shadow-sm hover:border-emerald-400 transition-colors">
                 {Object.keys(PLANT_DB).map((key) => <option key={key} value={key}>{PLANT_DB[key].name}</option>)}
@@ -141,7 +149,6 @@ export default function IoTDashboard() {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          
           <div className="lg:col-span-8 space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               <MetricCard title="Temperature" value={sensor.temperature} unit="°C" icon={Thermometer} colorClass="text-orange-500" />
@@ -164,10 +171,6 @@ export default function IoTDashboard() {
                  </div>
               </div>
               <div className="w-full sm:w-[70%] p-6 flex flex-col justify-center">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2"><Sprout size={18} className="text-emerald-500" /> Optimal Environment</h3>
-                  <span className="text-xs px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 rounded-md font-medium">Guide</span>
-                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
                   <RecItem icon={Thermometer} label="Temperature" value={currentPlant.specs.temp} />
                   <RecItem icon={Droplets} label="Air Humidity" value={currentPlant.specs.air_humid} />
@@ -198,21 +201,11 @@ export default function IoTDashboard() {
           </div>
 
           <div className="lg:col-span-4 space-y-6">
-            
             <div className="grid grid-cols-1 gap-4 h-[500px]">
-               {/* 1. LIVE DETECTION IMAGE (FROM PYTHON - Base64) */}
-               <CameraFeed 
-                 title="Live Feed" 
-                 url={sensor.realtime_image_url} 
-                 timestamp={sensor.latest_detection_time || sensor.timestamp}
-               />
-
-               {/* 2. DAILY IMAGE (FROM GOOGLE SHEET - Base64 or URL) */}
-               <CameraFeed 
-                 title="Daily History" 
-                 url={sensor.daily_image_url}
-                 timestamp={sensor.timestamp}
-               />
+               {/* LIVE FEED (From Python) */}
+               <CameraFeed title="Live Feed (Detection)" url={sensor.realtime_image_url} timestamp={sensor.latest_detection_time || sensor.timestamp} />
+               {/* DAILY HISTORY (From Sheet) */}
+               <CameraFeed title="Daily History" url={sensor.daily_image_url} timestamp={sensor.timestamp} />
             </div>
 
             <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl p-6 shadow-lg shadow-blue-500/20 relative overflow-hidden">
@@ -233,7 +226,6 @@ export default function IoTDashboard() {
                 </div>
               </div>
             </div>
-
           </div>
         </div>
       </main>

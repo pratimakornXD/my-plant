@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-// --- CONFIGURATION ---
 const GOOGLE_KEY = process.env.GOOGLE_SHEETS_API_KEY;
 const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const WEATHER_KEY = process.env.WEATHERAPI_KEY; 
@@ -9,7 +8,7 @@ const LOCATION_QUERY = "13.7563,100.5018";
 
 export async function GET() {
   try {
-    // 1. Fetch External APIs (Sheet + Weather)
+    // 1. Fetch External Data
     const [sheetRes, weatherRes] = await Promise.all([
       fetch(
         `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_RANGE}?key=${GOOGLE_KEY}`,
@@ -21,7 +20,7 @@ export async function GET() {
       ),
     ]);
 
-    // 2. Process Google Sheet Data (Sensors & Daily Image)
+    // 2. Parse Sheet Data
     let latestData: Record<string, any> = {}; 
     
     if (sheetRes.ok) {
@@ -36,15 +35,12 @@ export async function GET() {
           latestData[key] = lastRow[index] ?? null;
         });
 
-        // --- UPDATED SMART SEARCH ---
-        // Find Daily Image (History) in Sheet
-        // NOW ACCEPTS BASE64 (Checks if length > 100 instead of just http)
+        // Find Daily Image (History)
         if (!latestData.daily_image_url) {
              const imageColIndex = headers.findIndex((h: string) => /image|url|picture|photo|daily/i.test(h));
              if (imageColIndex !== -1) {
                  for (let i = rows.length - 1; i >= 0; i--) {
                      const val = rows[i][imageColIndex];
-                     // Check for URL (http) OR Base64 (Length > 100)
                      if (val && (val.startsWith("http") || val.length > 100)) {
                          latestData.daily_image_url = val;
                          break;
@@ -55,7 +51,7 @@ export async function GET() {
       }
     }
 
-    // 3. Process Weather
+    // 3. Parse Weather
     let weatherData = null;
     if (weatherRes.ok) {
       const json = await weatherRes.json();
@@ -66,29 +62,32 @@ export async function GET() {
       };
     } 
 
-    // 4. MERGE PYTHON POST DATA (Base64 Live Image)
+    // --- 4. MERGE PYTHON LIVE DATA ---
     const directAlert = global.latestAlertData;
-    
-    // Parse existing alerts
     let currentAlerts: string[] = [];
+
+    // Load alerts from sheet first
     if (latestData.alerts) {
         try {
-            currentAlerts = Array.isArray(latestData.alerts) 
-                ? latestData.alerts 
-                : JSON.parse(latestData.alerts);
-        } catch {
-            currentAlerts = [latestData.alerts];
-        }
+            currentAlerts = Array.isArray(latestData.alerts) ? latestData.alerts : JSON.parse(latestData.alerts);
+        } catch { currentAlerts = [latestData.alerts]; }
     }
 
+    // FIRE ALERT (Highest Priority)
+    if (latestData.fire == "1" || String(latestData.fire).toLowerCase() === "true") {
+        currentAlerts.unshift("🔥 CRITICAL: FIRE DETECTED 🔥");
+    }
+
+    // PYTHON ALERT + LIVE IMAGE
     if (directAlert) {
-        // Inject Base64 Image from Python
+        // OVERWRITE the live image url with the Base64 from Python
         latestData.realtime_image_url = directAlert.image; 
 
-        // Format Label + Confidence
+        // Create readable label
         const confidencePct = (directAlert.confidence * 100).toFixed(0);
         const alertString = `${directAlert.label} (${confidencePct}%)`;
 
+        // Add to alert list if new
         if (!currentAlerts.includes(alertString)) {
             currentAlerts.unshift(alertString);
         }
