@@ -201,7 +201,7 @@ export default function IoTDashboard() {
           </div>
 
           <div className="lg:col-span-4 space-y-6">
-            <div className="grid grid-cols-1 gap-4 h-[500px]">
+            <div className="grid grid-cols-1 gap-4 h-[640px]">
                {/* LIVE FEED (From Python) */}
                <CameraFeed title="Live Feed (Detection)" url={sensor.realtime_image_url} timestamp={sensor.latest_detection_time || sensor.timestamp} />
                {/* DAILY HISTORY (From Sheet) */}
