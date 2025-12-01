@@ -6,7 +6,7 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const HISTORY_ID = process.env.HISTORY_SHEET_ID;     
 const WEATHER_KEY = process.env.WEATHERAPI_KEY; 
 const SHEET_RANGE = "Sheet1!A1:Z";                   
-const HISTORY_RANGE = "Sheet1!A1:C10";
+const HISTORY_RANGE = "Sheet1!A1:C10";               
 const LOCATION_QUERY = "13.7563,100.5018";
 
 export async function GET() {
@@ -43,23 +43,22 @@ export async function GET() {
     }
 
     // --- HISTORY SHEET (With Status) ---
-    // Structure: Col A = Date, Col B = Image, Col C = Status
     if (historyRes.ok) {
         const histJson = await historyRes.json();
         if (histJson.values && histJson.values.length > 1) {
             const rows = histJson.values.slice(1);
             
-            historyLog = rows.map((row) => ({
+            // FIX: Explicitly type 'row' as 'any' to satisfy TypeScript
+            historyLog = rows.map((row: any) => ({
                 date: row[0] || "Unknown",
                 image: row[1] || null,
-                status: row[2] || "No Data" // Fetch Column C
-            })).filter(item => item.image); 
+                status: row[2] || "No Data" 
+            })).filter((item: any) => item.image); 
             
-            // Set default to latest
             if (historyLog.length > 0) {
                 const latest = historyLog[historyLog.length - 1];
                 latestData.daily_image_url = latest.image;
-                latestData.daily_status = latest.status; // Pass status to frontend
+                latestData.daily_status = latest.status; 
             }
         }
     }
