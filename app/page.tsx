@@ -176,7 +176,7 @@ export default function IoTDashboard() {
               <MetricCard title="Air Humidity" value={sensor.humidity_air} unit="%" icon={Droplets} colorClass="text-blue-500" />
               <MetricCard title="Soil Moisture" value={sensor.humidity_soil} unit="%" icon={CloudRain} colorClass="text-emerald-500" />
               <MetricCard title="Light Intensity" value={sensor.light_lux} unit="lx" icon={Sun} colorClass="text-yellow-500" />
-              <MetricCard title="Water Level" value={sensor.water_level} unit="cm" icon={Activity} />
+              <MetricCard title="Water Level" value={sensor.water_level} unit="" icon={Activity} />
             </div>
 
             <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border border-slate-200 dark:border-slate-800 rounded-2xl p-0 overflow-hidden shadow-sm flex flex-col sm:flex-row h-auto sm:h-64">
