@@ -6,7 +6,7 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const HISTORY_ID = process.env.HISTORY_SHEET_ID;     
 const WEATHER_KEY = process.env.WEATHERAPI_KEY; 
 const SHEET_RANGE = "Sheet1!A1:Z";                   
-const HISTORY_RANGE = "Sheet1!A1:C10";               
+const HISTORY_RANGE = "Sheet1!A1:C1000";               
 const LOCATION_QUERY = "13.7563,100.5018";
 
 export async function GET() {
@@ -42,21 +42,19 @@ export async function GET() {
       }
     }
 
-    // --- HISTORY SHEET (With Status) ---
+    // --- HISTORY SHEET ---
     if (historyRes.ok) {
         const histJson = await historyRes.json();
         if (histJson.values && histJson.values.length > 1) {
             const rows = histJson.values.slice(1);
-            
-            // FIX: Explicitly type 'row' as 'any' to satisfy TypeScript
             historyLog = rows.map((row: any) => ({
                 date: row[0] || "Unknown",
                 image: row[1] || null,
                 status: row[2] || "No Data" 
             })).filter((item: any) => item.image); 
-            
+            historyLog.reverse();
             if (historyLog.length > 0) {
-                const latest = historyLog[historyLog.length - 1];
+                const latest = historyLog[0];
                 latestData.daily_image_url = latest.image;
                 latestData.daily_status = latest.status; 
             }
@@ -74,7 +72,7 @@ export async function GET() {
       };
     } 
 
-    // --- ALERTS ---
+    // --- ALERTS & CONFIDENCE LOGIC ---
     const directAlert = global.latestAlertData;
     let currentAlerts: string[] = [];
 
@@ -89,8 +87,24 @@ export async function GET() {
 
     if (directAlert) {
         latestData.realtime_image_url = directAlert.image; 
-        const confidencePct = (directAlert.confidence * 100).toFixed(0);
-        const alertString = `${directAlert.label} (${confidencePct}%)`;
+        
+        // --- FIXED CONFIDENCE LOGIC ---
+        let rawConf = parseFloat(directAlert.confidence);
+        let confStr = "";
+
+        if (isNaN(rawConf)) {
+            confStr = "??";
+        } else if (rawConf <= 1.0) {
+            // Case 1: Ratio (0.95 -> 95%)
+            confStr = (rawConf * 100).toFixed(0) + "%";
+        } else {
+            // Case 2: Score (687.98 -> 687.98)
+            // Show exactly 2 decimals, DO NOT multiply
+            confStr = rawConf.toFixed(2);
+        }
+
+        const alertString = `${directAlert.label} (${confStr})`;
+        
         if (!currentAlerts.includes(alertString)) currentAlerts.unshift(alertString);
         latestData.latest_detection_time = directAlert.timestamp;
     }
